@@ -37,3 +37,20 @@ console.log(`str: ${str}`);
 //   }
 //   return resultStr;
 // }
+
+//1， 2， 3，4
+function getSectionPosition(resultObj, level) {
+  // let level = levelTypeMapping(contentType);
+  let sPosition = resultObj.sections;
+  for (let i = 2; i <= level; i++) {
+    if (!sPosition[0]) {
+      sPosition.push({ name: '', preParagraphs: [], sections: [] });
+    }
+    sPosition = sPosition[sPosition.length - 1].sections;
+  }
+  return sPosition;
+}
+let resultObj = { preParagraphs: [{ preParagraphs: [] }], sections: [] };
+
+console.log(getSectionPosition(resultObj, 4));
+console.log(JSON.stringify(resultObj));

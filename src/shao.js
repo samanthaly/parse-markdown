@@ -8,29 +8,30 @@ const tagMapping = {
   'paragraph_open-p': 'preParagraphs',
 };
 
-function convertToPaperModel(originArr) {
+exports.convertToPaperModel = function (originArr) {
   if (!originArr || !originArr[0]) {
     return;
   }
 
-  let resultObj = {preParagraphs: [], sections: []};
+  let resultObj = { preParagraphs: [], sections: [] };
   let currentParent = resultObj;
   let currentSection = resultObj;
-  for (let i=0; i<originArr.length-1; i++) {
+  for (let i = 0; i < originArr.length - 1; i++) {
     let contentType = tagMapping[`${originArr[i].type}-${originArr[i].tag}`];
     let content = originArr[i + 1].content;
 
-    if (contentType==='charpters' || contentType==='sections' || contentType==='subsections' || contentType==='subsubsections') {
-      currentSection = { name: content, sections: [], preParagraphs: [], parent: currentSection };
-      currentParent = currentSection.parent;
+    if (contentType === 'charpters' || contentType === 'sections' || contentType === 'subsections' || contentType === 'subsubsections') {
+      console.log(`---${i}---${contentType}, ${JSON.stringify(currentParent)}`);
+      currentParent = currentSection;
+      currentSection = { name: content, sections: [], preParagraphs: [] };
       currentParent.sections.push(currentSection);
     }
-    if (contentType==='subsubsections') {
+    if (contentType === 'subsubsections') {
       delete currentSection.sections;
     }
 
     if (contentType === 'preParagraphs') {
-      currentSection.preParagraphs.push({paragraph: content});
+      currentSection.preParagraphs.push({ paragraph: content });
     }
   }
 

@@ -4,16 +4,18 @@
 'use strict';
 
 const tagMapping = {
-  'heading_open-h1': 'chapters',
-  'heading_open-h2': 'sections',
-  'heading_open-h3': 'subsections',
-  'heading_open-h4': 'subsubsections',
-  'paragraph_open-p': 'preParagraphs',
+  'heading_open-h1': '1',
+  'heading_open-h2': '2',
+  'heading_open-h3': '3',
+  'heading_open-h4': '4',
+  'paragraph_open-p': 'p',
 };
 const decoratesMapping = {
   '**': 'bold',
   '*': 'italic',
-  '~~': 'strikethrough'
+  '~~': 'strikethrough',
+  '^': 'superscript',
+  '~': 'subscript'
 };
 function convertDecoratesInChildren(childrenArr, contentType) {
   let contentObj = { content: '', decorates: [] };
@@ -41,58 +43,37 @@ function convertDecoratesInChildren(childrenArr, contentType) {
   return contentObj;
 }
 
+function getSectionPosition(resultObj, level) {
+  if (!level) return;
+  level = parseInt(level);
+  let sPosition = resultObj.chapters;
+  for (let i = 2; i <= level; i++) {
+    if (!sPosition[0]) {
+      sPosition.push({ name: '', preParagraphs: [], sections: [] });
+    }
+    sPosition = sPosition[sPosition.length - 1].sections;
+  }
+  return sPosition;
+}
 exports.convertToPaperModel = function (originArr) {
   if (!originArr[0]) return;
-  let resultObj = { preParagraphs: [], chapters: [] };
-  let chaptersPos = resultObj.chapters;
-  let sectionsPos;
-  let subsectionsPos;
-  let subsubsectionsPos;
-  let paragraphPosition = resultObj.preParagraphs;
-  paragraphPosition.push({ preParagraphs: [], sections: [] });
-  paragraphPosition = paragraphPosition[paragraphPosition.length - 1].preParagraphs;
+  let resultObj = { preParagraphs: [{ preParagraphs: [] }], chapters: [] };
+  let pPosition = resultObj.preParagraphs[0];
+  let sPosition = resultObj.chapters;
+  let sObj;
   for (let i = 0; i < originArr.length - 1; i++) {
-    let key = `${originArr[i].type}-${originArr[i].tag}`;
-    let contentType = tagMapping[key];
+    let contentType = tagMapping[`${originArr[i].type}-${originArr[i].tag}`];
     if (originArr[i + 1].children === null) continue;
     let contentObj = convertDecoratesInChildren(originArr[i + 1].children, contentType);
-    switch (contentType) {
-      case 'chapters':
-        chaptersPos.push({ name: contentObj.content, sections: [], preParagraphs: [], decorates: contentObj.decorates, comment: null });
-        paragraphPosition = chaptersPos[chaptersPos.length - 1].preParagraphs;
-        break;
-      case 'sections':
-        if (!chaptersPos[0]) chaptersPos[0] = { name: '', sections: [], preParagraphs: [], decorates: [], comment: null };
-        sectionsPos = chaptersPos[chaptersPos.length - 1].sections;
-        if (!sectionsPos) sectionsPos = [];
-        sectionsPos.push({ name: contentObj.content, sections: [], preParagraphs: [], decorates: contentObj.decorates, comment: null });
-        paragraphPosition = sectionsPos[sectionsPos.length - 1].preParagraphs;
-        break;
-      case 'subsections':
-        if (!chaptersPos[0]) chaptersPos[0] = { name: '', sections: [{ name: '', sections: [], preParagraphs: [], decorates: [], comment: null }], preParagraphs: [] };
-        subsectionsPos = sectionsPos[sectionsPos.length - 1].sections;
-        if (!subsectionsPos) subsectionsPos = [];
-        subsectionsPos.push({ name: contentObj.content, sections: [], preParagraphs: [], decorates: contentObj.decorates, comment: null });
-        paragraphPosition = subsectionsPos[subsectionsPos.length - 1].preParagraphs;
-        break;
-      case 'subsubsections':
-        if (!chaptersPos[0]) chaptersPos[0] = { name: '', sections: [{ name: '', sections: [], preParagraphs: [{ name: '', sections: [], preParagraphs: [], decorates: [], comment: null }], decorates: [], comment: null }], preParagraphs: [], decorates: [], comment: null };
-        subsubsectionsPos = subsectionsPos[subsectionsPos.length - 1].sections;
-        if (!subsubsectionsPos) subsubsectionsPos = [];
-        subsubsectionsPos.push({ name: contentObj.content, preParagraphs: [], sections: [], decorates: contentObj.decorates, comment: null });
-        paragraphPosition = subsubsectionsPos[subsubsectionsPos.length - 1].preParagraphs;
-        break;
-      case 'preParagraphs':
-        paragraphPosition.push({ paragraph: contentObj.content, refs: [], decorates: contentObj.decorates, footnotes: [], comment: null });
-        break;
-      default:
-        break;
+
+    if (contentType === 'p') {
+      pPosition.preParagraphs.push({ paragraph: contentObj.content, decorates: contentObj.decorates, refs: [], footnotes: [], comment: null });
+    } else if (['1', '2', '3', '4'].indexOf(contentType) >= 0) {
+      sObj = { name: contentObj.content, decorates: contentObj.decorates, preParagraphs: [], sections: [], comment: null };
+      sPosition = getSectionPosition(resultObj, contentType) || sPosition;
+      sPosition.push(sObj);
+      pPosition = sPosition[sPosition.length - 1];
     }
   }
   return resultObj;
 };
-
-function processOriginArr(originArr, childrenArr, type) {
-  if (!originArr[0]) return;
-  return processOriginArr();
-}
