@@ -18,17 +18,18 @@ const decoratesMapping = {
   '~': 'subscript'
 };
 function processUnderlineInStr(content) {
+  let underlineStr = ']{.underline}';
   let paraObj = {};
-  if (!content.includes(']{.underline}')) {
+  if (!content.includes(underlineStr)) {
     paraObj = { content: content, decorates: [] };
   } else {
     let tempContent = '', pos, length;
     for (let i = 0; i < content.length; i++) {
       if (content[i] === '[') {
         pos = i;
-      } else if (content[i] + content.substr(i + 1, 12) === ']{.underline}') {
+      } else if (content[i] + content.substr(i + 1, 12) === underlineStr) {
         length = i - pos - 1;
-        i = i + 12;
+        i = i + underlineStr.length - 1;
       } else {
         tempContent += content[i];
       }
