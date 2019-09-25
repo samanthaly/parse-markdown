@@ -17,6 +17,26 @@ const decoratesMapping = {
   '^': 'superscript',
   '~': 'subscript'
 };
+function processUnderlineInStr(content) {
+  let paraObj = {};
+  if (!content.includes(']{.underline}')) {
+    paraObj = { content: content, decorates: [] };
+  } else {
+    let tempContent = '', pos, length;
+    for (let i = 0; i < content.length; i++) {
+      if (content[i] === '[') {
+        pos = i;
+      } else if (content[i] + content.substr(i + 1, 12) === ']{.underline}') {
+        length = i - pos - 1;
+        i = i + 12;
+      } else {
+        tempContent += content[i];
+      }
+    }
+    paraObj = { content: tempContent, decorates: [{ pos: pos, length: length, type: ['underline'] }] };
+  }
+  return paraObj;
+}
 function convertDecoratesInChildren(childrenArr, contentType) {
   let contentObj = { content: '', decorates: [] };
   if (!childrenArr || !childrenArr[0]) {
@@ -26,7 +46,7 @@ function convertDecoratesInChildren(childrenArr, contentType) {
     let type = childrenArr[i].type;
     let markup = childrenArr[i].markup;
     if (type === 'text') {
-      let processContent = contentType === 'preParagraphs' ? childrenArr[i].content : childrenArr[i].content.replace(/(.+)\s* \s*(\{#.+\})/g, '$1');
+      let processContent = contentType === 'p' ? childrenArr[i].content : childrenArr[i].content.replace(/(.+)\s* \s*(\{#.+\})/g, '$1');
       contentObj.content += processContent;
     } else if (type === 'softbreak' && childrenArr[i].tag === 'br') {
       contentObj.content += ' ';
@@ -40,6 +60,9 @@ function convertDecoratesInChildren(childrenArr, contentType) {
       });
     }
   }
+  let tempContentObj = processUnderlineInStr(contentObj.content);
+  contentObj.content = tempContentObj.content;
+  contentObj.decorates = contentObj.decorates.concat(tempContentObj.decorates);
   return contentObj;
 }
 

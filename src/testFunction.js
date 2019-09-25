@@ -26,31 +26,29 @@ for (let i = 0; i < arr.length; i++) {
   // console.log(`arr[${i}]: ${arr[i]}`);
 }
 
-let str = '以及标题！@#￥%%……&**（*（（ {#以及标题！@#￥%%……&**（*（（}';
-// str = str.replace(/(\d+)\s* \s*(\{\#\d+\})/g, '$1');
-str = str.replace(/(.+)\s* \s*(\{\#.+\})/g, '$1');
-console.log(`str: ${str}`);
-// function processStr(str) {
-//   let resultStr = '';
-//   for (let i = 0; i < str.length; i++) {
-//     console.log(str[i]);
-//   }
-//   return resultStr;
-// }
-
-//1， 2， 3，4
-function getSectionPosition(resultObj, level) {
-  // let level = levelTypeMapping(contentType);
-  let sPosition = resultObj.sections;
-  for (let i = 2; i <= level; i++) {
-    if (!sPosition[0]) {
-      sPosition.push({ name: '', preParagraphs: [], sections: [] });
+let str = '13452345[二级标题正文内容]{.underline}34sdfasfd';
+// str = str.replace(/(\[)\s*(.+)\s*\s*(.+\]\{\.underline\})/g, '$2');
+// console.log(str);
+function processUnderlineInStr(content) {
+  let paraObj = {};
+  if (!content.includes(']{.underline}')) {
+    paraObj = { content: content, decorates: [] };
+  } else {
+    let tempContent = '', pos, length;
+    for (let i = 0; i < content.length; i++) {
+      if (content[i] === '[') {
+        pos = i;
+      } else if (content[i] + content.substr(i + 1, 12) === ']{.underline}') {
+        length = i - pos - 1;
+        i = i + 12;
+      } else {
+        tempContent += content[i];
+      }
     }
-    sPosition = sPosition[sPosition.length - 1].sections;
+    paraObj = { content: tempContent, decorates: [{ pos: pos, length: length, type: ['underline'] }] };
   }
-  return sPosition;
+  return paraObj;
 }
-let resultObj = { preParagraphs: [{ preParagraphs: [] }], sections: [] };
-
-console.log(getSectionPosition(resultObj, 4));
-console.log(JSON.stringify(resultObj));
+let resultObj = processUnderlineInStr(str);
+console.log(`resultObj: ${JSON.stringify(resultObj)}`);
+// console.log(str.includes('{.underline}'));
