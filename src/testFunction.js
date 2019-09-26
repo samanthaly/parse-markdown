@@ -3,6 +3,9 @@
  * 用于测试一些函数
  */
 'use strict';
+const ShortUID = require('short-uid');
+const idGen = new ShortUID();
+const fs = require('fs');
 
 const decoratesMapping = {
   '*': 'bold',
@@ -52,3 +55,30 @@ function processUnderlineInStr(content) {
 let resultObj = processUnderlineInStr(str);
 console.log(`resultObj: ${JSON.stringify(resultObj)}`);
 // console.log(str.includes('{.underline}'));
+
+function renameImageFile(oldPath = '') {
+  let newFileObj = { path: '', fileName: '' };
+  let oldPathArr = oldPath.split('/');
+  let oldName = oldPathArr.pop();
+  oldName = oldName.split('.');
+  let fileExtension = oldName[0] && oldName[oldName.length - 1];
+  let genId = idGen.randomUUID();
+  newFileObj.fileName = `IMAGE_${genId}.${fileExtension.toLowerCase()}`;
+  oldPathArr.pop();
+  newFileObj.path = `${oldPathArr.join('/')}/${newFileObj.fileName}`;
+  return newFileObj;
+}
+
+let oldPath = './data/wordImg/media/image2.png';
+
+let newPath = renameImageFile(oldPath).path;
+let fileName = ren
+console.log(`oldPath: ${oldPath}, newPath: ${newPath}`);
+// fs.rename(oldPath, newPath, err => {
+//   if (err) {
+//     console.log('重命名失败');
+//   }
+// });
+
+
+// console.log(JSON.stringify(renameImageFile('./data/wordImg/media/image1.jpeg')));

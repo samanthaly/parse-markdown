@@ -2,6 +2,9 @@
  * create by samantha on 2019-09-24
  */
 'use strict';
+const ShortUID = require('short-uid');
+const idGen = new ShortUID();
+const fs = require('fs');
 
 const paragraphTypeMapping = {
   'bullet_list_open-ul': 'bullet_open',
@@ -23,6 +26,22 @@ const decoratesMapping = {
   '^': 'superscript',
   '~': 'subscript'
 };
+function convertInToPx(num) {
+  num = parseFloat(num);
+  return Math.round(num * 96);
+}
+function renameImageFile(oldPath = '') {
+  let newFileObj = { path: '', fileName: '' };
+  let oldPathArr = oldPath.split('/');
+  let oldName = oldPathArr.pop();
+  oldName = oldName.split('.');
+  let fileExtension = oldName[0] && oldName[oldName.length - 1];
+  let genId = idGen.randomUUID();
+  newFileObj.fileName = `IMAGE_${genId}.${fileExtension.toLowerCase()}`;
+  oldPathArr.pop();
+  newFileObj.path = `${oldPathArr.join('/')}/images/${newFileObj.fileName}`;
+  return newFileObj;
+}
 function processUnderlineInStr(content) {
   let underlineStr = ']{.underline}';
   let paraObj = {};
@@ -45,38 +64,65 @@ function processUnderlineInStr(content) {
   return paraObj;
 }
 function convertDecoratesInChildren(childrenArr, contentType) {
-  let contentObj = { content: '', decorates: [] };
+  let paragraphObj = { content: '', decorates: [] };
   if (!childrenArr || !childrenArr[0]) {
-    return contentObj;
+    return paragraphObj;
   }
   for (let i = 0; i < childrenArr.length; i++) {
     let type = childrenArr[i].type;
     let markup = childrenArr[i].markup;
     if (type === 'text') {
       let processContent = contentType === 'p' ? childrenArr[i].content : childrenArr[i].content.replace(/(.+)\s* \s*(\{#.+\})/g, '$1');
-      contentObj.content += processContent;
+      paragraphObj.content += processContent;
     } else if (type === 'softbreak' && childrenArr[i].tag === 'br') {
-      contentObj.content += ' ';
+      paragraphObj.content += ' ';
     } else if (type.endsWith('_open')) {
-      contentObj.decorates.push({ pos: contentObj.content.length, type: [decoratesMapping[markup]] });
+      paragraphObj.decorates.push({ pos: paragraphObj.content.length, type: [decoratesMapping[markup]] });
     } else if (type.endsWith('_close')) {
-      contentObj.decorates.find(value => {
+      paragraphObj.decorates.find(value => {
         if (value.type[0] === decoratesMapping[markup]) {
-          value.length = contentObj.content.length - value.pos;
+          value.length = paragraphObj.content.length - value.pos;
         }
       });
     }
   }
-  let tempContentObj = processUnderlineInStr(contentObj.content);
-  contentObj.content = tempContentObj.content;
-  contentObj.decorates = contentObj.decorates.concat(tempContentObj.decorates);
-  return contentObj;
+  let tempContentObj = processUnderlineInStr(paragraphObj.content);
+  paragraphObj.content = tempContentObj.content;
+  paragraphObj.decorates = paragraphObj.decorates.concat(tempContentObj.decorates);
+  return paragraphObj;
+}
+function convertChildrenPromise(childrenArr = [], contentType) {
+  return new Promise((resolve, reject) => {
+    if (!childrenArr[0] || !contentType) {
+      return resolve({ type: 'paragraph', content: '', decorates: [] });
+    }
+    if (childrenArr[0].type === 'image') {
+      let imagePath = childrenArr[0].attrs[0] ? childrenArr[0].attrs[0][1] : ''; // ./data/wordImg/media/image1.jpeg
+      let imageFilePathObj = renameImageFile(imagePath);
+      let newPath = imageFilePathObj.path;
+      fs.rename(imagePath, newPath, err => {
+        let fileName = imageFilePathObj.fileName;
+        let timestamp = new Date().getTime();
+        let imageId = `${timestamp}${timestamp}`;
+        imageId = imageId.slice(0, 24);
+        let widthAndHeight = convertDecoratesInChildren(childrenArr, contentType).content;
+        widthAndHeight = widthAndHeight.split('"');
+        let width = widthAndHeight[1] && widthAndHeight[1].slice(0, -2);
+        let height = widthAndHeight[3] && widthAndHeight[3].slice(0, -2);
+        width = convertInToPx(width);
+        height = convertInToPx(height);
+        return resolve({ type: 'image', id: imageId, fileName: fileName, width: width, height: height, caption: '无标题' });
+      });
+    } else {
+      return resolve(convertDecoratesInChildren(childrenArr, contentType));
+    }
+  });
 }
 
-function getSectionPosition(resultObj, level) {
+function getSectionPosition(contentObj, level) {
   if (!level) return;
   level = parseInt(level);
-  let sPosition = resultObj.chapters;
+  let sPosition = contentObj.chapters;
   for (let i = 2; i <= level; i++) {
     if (!sPosition[0]) {
       sPosition.push({ name: '', preParagraphs: [], sections: [] });
@@ -85,36 +131,45 @@ function getSectionPosition(resultObj, level) {
   }
   return sPosition;
 }
-function processParagraph(paragraphType, contentObj) {
-  let paraObj = { paragraph: contentObj.content, decorates: contentObj.decorates, refs: [], footnotes: [], comment: null };
+function processParagraph(paragraphType = '', paragraphObj) {
+  let paraObj = {};
+  if (paragraphObj.type === 'image') {
+    paraObj = { image: { id: paragraphObj.id, fileName: paragraphObj.fileName, caption: paragraphObj.caption }, comment: null };
+  } else {
+    paraObj = { paragraph: paragraphObj.content, decorates: paragraphObj.decorates, refs: [], footnotes: [], comment: null };
+  }
   if (paragraphType.endsWith('_open')) {
     let type = paragraphType.split('_')[0];
-    paraObj = { list: { text: contentObj.content, type: type, decorates: contentObj.decorates, refs: [], footnotes: [] }, comment: null }
+    paraObj = { list: { text: paragraphObj.content, type: type, decorates: paragraphObj.decorates, refs: [], footnotes: [] }, comment: null };
   }
   return paraObj;
 }
-exports.convertToPaperModel = function (originArr) {
+exports.convertToPaperModel = async function (originArr) {
   if (!originArr[0]) return;
-  let resultObj = { preParagraphs: [{ preParagraphs: [] }], chapters: [] };
-  let pPosition = resultObj.preParagraphs[0];
-  let sPosition = resultObj.chapters;
-  let sObj, paraObj, paragraphType;
+  let paperModelObj = { content: { preParagraphs: [{ preParagraphs: [] }], chapters: [] }, image: [] };
+  let contentObj = paperModelObj.content;
+  let pPosition = contentObj.preParagraphs[0];
+  let sPosition = contentObj.chapters;
+  let sectionsObj, paraObj, paragraphType, paragraphObj;
   for (let i = 0; i < originArr.length - 1; i++) {
     let key = `${originArr[i].type}-${originArr[i].tag}`;
     paragraphTypeMapping[key] ? paragraphType = paragraphTypeMapping[key] : '';
     let contentType = tagMapping[key];
     if (originArr[i + 1].children === null) continue;
-    let contentObj = convertDecoratesInChildren(originArr[i + 1].children, contentType);
+    paragraphObj = await convertChildrenPromise(originArr[i + 1].children, contentType);
+    if (paragraphObj && paragraphObj.type === 'image') {
+      paperModelObj.image.push({ id: paragraphObj.id, caption: paragraphObj.caption, fileName: paragraphObj.fileName, width: paragraphObj.width, height: paragraphObj.height });
+    }
 
     if (contentType === 'p') {
-      paraObj = processParagraph(paragraphType, contentObj);
+      paraObj = processParagraph(paragraphType, paragraphObj);
       pPosition.preParagraphs.push(paraObj);
     } else if (['1', '2', '3', '4'].indexOf(contentType) >= 0) {
-      sObj = { name: contentObj.content, decorates: contentObj.decorates, preParagraphs: [], sections: [], comment: null };
-      sPosition = getSectionPosition(resultObj, contentType) || sPosition;
-      sPosition.push(sObj);
+      sectionsObj = { name: paragraphObj.content, decorates: paragraphObj.decorates, preParagraphs: [], sections: [], comment: null };
+      sPosition = getSectionPosition(contentObj, contentType) || sPosition;
+      sPosition.push(sectionsObj);
       pPosition = sPosition[sPosition.length - 1];
     }
   }
-  return resultObj;
+  return paperModelObj;
 };
