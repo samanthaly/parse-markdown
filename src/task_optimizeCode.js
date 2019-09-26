@@ -3,6 +3,12 @@
  */
 'use strict';
 
+const paragraphTypeMapping = {
+  'bullet_list_open-ul': 'bullet_open',
+  'bullet_list_close-ul': 'bullet_end',
+  'ordered_list_open-ol': 'ordered_open',
+  'ordered_list_close-ol': 'ordered_end',
+};
 const tagMapping = {
   'heading_open-h1': '1',
   'heading_open-h2': '2',
@@ -79,19 +85,30 @@ function getSectionPosition(resultObj, level) {
   }
   return sPosition;
 }
+function processParagraph(paragraphType, contentObj) {
+  let paraObj = { paragraph: contentObj.content, decorates: contentObj.decorates, refs: [], footnotes: [], comment: null };
+  if (paragraphType.endsWith('_open')) {
+    let type = paragraphType.split('_')[0];
+    paraObj = { list: { text: contentObj.content, type: type, decorates: contentObj.decorates, refs: [], footnotes: [] }, comment: null }
+  }
+  return paraObj;
+}
 exports.convertToPaperModel = function (originArr) {
   if (!originArr[0]) return;
   let resultObj = { preParagraphs: [{ preParagraphs: [] }], chapters: [] };
   let pPosition = resultObj.preParagraphs[0];
   let sPosition = resultObj.chapters;
-  let sObj;
+  let sObj, paraObj, paragraphType;
   for (let i = 0; i < originArr.length - 1; i++) {
-    let contentType = tagMapping[`${originArr[i].type}-${originArr[i].tag}`];
+    let key = `${originArr[i].type}-${originArr[i].tag}`;
+    paragraphTypeMapping[key] ? paragraphType = paragraphTypeMapping[key] : '';
+    let contentType = tagMapping[key];
     if (originArr[i + 1].children === null) continue;
     let contentObj = convertDecoratesInChildren(originArr[i + 1].children, contentType);
 
     if (contentType === 'p') {
-      pPosition.preParagraphs.push({ paragraph: contentObj.content, decorates: contentObj.decorates, refs: [], footnotes: [], comment: null });
+      paraObj = processParagraph(paragraphType, contentObj);
+      pPosition.preParagraphs.push(paraObj);
     } else if (['1', '2', '3', '4'].indexOf(contentType) >= 0) {
       sObj = { name: contentObj.content, decorates: contentObj.decorates, preParagraphs: [], sections: [], comment: null };
       sPosition = getSectionPosition(resultObj, contentType) || sPosition;
