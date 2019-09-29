@@ -18,6 +18,7 @@ const tagMapping = {
   'heading_open-h3': '3',
   'heading_open-h4': '4',
   'paragraph_open-p': 'p',
+  'table_open-table': 'table',
 };
 const decoratesMapping = {
   '**': 'bold',
@@ -144,32 +145,39 @@ function processParagraph(paragraphType = '', paragraphObj) {
   }
   return paraObj;
 }
+function getContent(content, paragraphObj, contentType, paragraphType) {
+  if (!getContent.pPosition) {
+    getContent.pPosition = content.preParagraphs[0];
+  }
+  if (!getContent.sPosition) {
+    getContent.sPosition = content.chapters;
+  }
+  if (contentType === 'p') {
+    let paraObj = processParagraph(paragraphType, paragraphObj);
+    getContent.pPosition.preParagraphs.push(paraObj);
+  } else if (['1', '2', '3', '4'].indexOf(contentType) >= 0) {
+    let sectionsObj = { name: paragraphObj.content, decorates: paragraphObj.decorates, preParagraphs: [], sections: [], comment: null };
+    getContent.sPosition = getSectionPosition(content, contentType) || getContent.sPosition;
+    getContent.sPosition.push(sectionsObj);
+    getContent.pPosition = getContent.sPosition[getContent.sPosition.length - 1];
+  }
+  return content;
+}
 exports.convertToPaperModel = async function (originArr) {
   if (!originArr[0]) return;
   let paperModelObj = { content: { preParagraphs: [{ preParagraphs: [] }], chapters: [] }, image: [] };
   let contentObj = paperModelObj.content;
-  let pPosition = contentObj.preParagraphs[0];
-  let sPosition = contentObj.chapters;
-  let sectionsObj, paraObj, paragraphType, paragraphObj;
+  let paragraphType, paragraphObj, contentType;
   for (let i = 0; i < originArr.length - 1; i++) {
-    let key = `${originArr[i].type}-${originArr[i].tag}`;
-    paragraphTypeMapping[key] ? paragraphType = paragraphTypeMapping[key] : '';
-    let contentType = tagMapping[key];
-    if (originArr[i + 1].children === null) continue;
-    paragraphObj = await convertChildrenPromise(originArr[i + 1].children, contentType);
+    let key = `${originArr[i].type}-${originArr[i].tag}`; // 留下
+    paragraphTypeMapping[key] ? paragraphType = paragraphTypeMapping[key] : ''; // 留下
+    contentType = tagMapping[key] ? tagMapping[key] : contentType; // 留下
+    if (originArr[i + 1].children === null) continue; // 留下
+    paragraphObj = await convertChildrenPromise(originArr[i + 1].children, contentType); // 留下
     if (paragraphObj && paragraphObj.type === 'image') {
       paperModelObj.image.push({ id: paragraphObj.id, caption: paragraphObj.caption, fileName: paragraphObj.fileName, width: paragraphObj.width, height: paragraphObj.height });
     }
-
-    if (contentType === 'p') {
-      paraObj = processParagraph(paragraphType, paragraphObj);
-      pPosition.preParagraphs.push(paraObj);
-    } else if (['1', '2', '3', '4'].indexOf(contentType) >= 0) {
-      sectionsObj = { name: paragraphObj.content, decorates: paragraphObj.decorates, preParagraphs: [], sections: [], comment: null };
-      sPosition = getSectionPosition(contentObj, contentType) || sPosition;
-      sPosition.push(sectionsObj);
-      pPosition = sPosition[sPosition.length - 1];
-    }
+    contentObj = getContent(contentObj, paragraphObj, contentType, paragraphType);
   }
   return paperModelObj;
 };
