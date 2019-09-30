@@ -24,11 +24,11 @@ const testEnglish = dir + '/test_english.docx';
 const SUIBE_dsy_fix = dir + '/SUIBE_dsy_fix.docx';
 const simple11 = dir + '/simpleFix.docx';
 const simpleMarkdown = dir + '/simpleMarkdown.docx';
-const officeWord = dir + '/officeWord.docx';
 const specialWord = dir + '/special_产品功能培训.docx';
+const officeWord = dir + '/officeWord.docx';
 
 let readStream = fs.createReadStream(officeWord);
-let subprocess = exec(`pandoc --extract-media ${savePictureDir} -f docx -t markdown`, (err, stdout) => {
+let subprocess = exec(`pandoc --extract-media ${savePictureDir} -f docx -t markdown-simple_tables`, (err, stdout) => {
   // let subprocess = exec(`pandoc --extract-media ./wordImg -f docx -o markdown.md`, (err, stdout) => {
   // console.log(`err: ${err}\n`);
   // console.log(`stdout:\n ${stdout}`);
