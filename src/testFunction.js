@@ -6,3 +6,6 @@
 const ShortUID = require('short-uid');
 const idGen = new ShortUID();
 const fs = require('fs');
+
+console.log(Date.now().toString(16) + Math.random().toString(16).substr(2,28));
+console.log(Date.now().toString(16) + Math.random().toString(16).substr(2,28));

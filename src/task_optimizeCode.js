@@ -5,6 +5,7 @@
 const ShortUID = require('short-uid');
 const idGen = new ShortUID();
 const fs = require('fs');
+const uuidv1 = require('uuid/v1');
 
 
 const paragraphTypeMapping = {
@@ -109,9 +110,7 @@ function convertChildrenPromise(childrenArr = [], contentType) {
       let newPath = imageFilePathObj.path;
       fs.rename(imagePath, newPath, err => {
         let fileName = imageFilePathObj.fileName;
-        let timestamp = new Date().getTime();
-        let imageId = `${timestamp}${timestamp}`;
-        imageId = imageId.slice(0, 24);
+        let imageId = uuidv1();
         let widthAndHeight = convertDecoratesInChildren(childrenArr, contentType).content;
         widthAndHeight = widthAndHeight.split('"');
         let width = widthAndHeight[1] && widthAndHeight[1].slice(0, -2);
@@ -183,8 +182,7 @@ function processParagraph(paragraphType = '', paragraphObj) {
   if (paragraphObj.type === 'image') {
     paraObj = { image: { id: paragraphObj.id, fileName: paragraphObj.fileName, caption: paragraphObj.caption }, comment: null };
   } else if (paragraphObj.content.startsWith('$$') && paragraphObj.content.endsWith('$$')) {
-    let timestamp = new Date().getTime();
-    let formulaId = `${timestamp}${timestamp}`.slice(0, 24);
+    let formulaId = uuidv1();
     let formulaText = paragraphObj.content.slice(2, -2);
     paraObj = { formula: { id: formulaId, text: formulaText }, comment: null };
   } else {
