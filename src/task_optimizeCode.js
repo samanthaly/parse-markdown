@@ -125,7 +125,7 @@ function convertChildrenPromise(childrenArr = [], contentType) {
     }
   });
 }
-
+// 此函数和项目中的不同
 function convertTablePromise(tableType, content, thesisPath, callback) {
   return new Promise((resolve, reject) => {
     if (!convertTablePromise.data && tableType === 'table_open') {
@@ -182,6 +182,11 @@ function processParagraph(paragraphType = '', paragraphObj) {
   let paraObj = {};
   if (paragraphObj.type === 'image') {
     paraObj = { image: { id: paragraphObj.id, fileName: paragraphObj.fileName, caption: paragraphObj.caption }, comment: null };
+  } else if (paragraphObj.content.startsWith('$$') && paragraphObj.content.endsWith('$$')) {
+    let timestamp = new Date().getTime();
+    let formulaId = `${timestamp}${timestamp}`.slice(0, 24);
+    let formulaText = paragraphObj.content.slice(2, -2);
+    paraObj = { formula: { id: formulaId, text: formulaText }, comment: null };
   } else {
     paraObj = { paragraph: paragraphObj.content, decorates: paragraphObj.decorates, refs: [], footnotes: [], comment: null };
   }
@@ -198,9 +203,14 @@ function getContent(content, paragraphObj, contentType, paragraphType) {
   if (!getContent.sPosition) {
     getContent.sPosition = content.chapters;
   }
+  let formulaObj = {};
   if (contentType === 'p') {
     let paraObj = processParagraph(paragraphType, paragraphObj);
     getContent.pPosition.preParagraphs.push(paraObj);
+    if (paraObj.formula) {
+      formulaObj.id = paraObj.formula.id;
+      formulaObj.formula = paraObj.formula.text;
+    }
   } else if (['1', '2', '3', '4'].indexOf(contentType) >= 0) {
     let sectionsObj = { name: paragraphObj.content, decorates: paragraphObj.decorates, preParagraphs: [], sections: [], comment: null };
     getContent.sPosition = getSectionPosition(content, contentType) || getContent.sPosition;
@@ -209,13 +219,14 @@ function getContent(content, paragraphObj, contentType, paragraphType) {
   } else if (contentType === 'table_close' && paragraphObj.table) {
     getContent.pPosition.preParagraphs.push(paragraphObj);
   }
-  return content;
+  return { content, formula: formulaObj };
 }
 exports.convertToPaperModel = async function (originArr, thesisPath) {
   if (!originArr[0]) return;
-  let paperModelObj = { content: { preParagraphs: [{ preParagraphs: [] }], chapters: [] }, image: [], table: [] };
+  let paperModelObj = { content: { preParagraphs: [{ preParagraphs: [] }], chapters: [] }, image: [], table: [], formula: [] };
   let contentObj = paperModelObj.content;
   let paragraphType, paragraphObj, contentType, tableObj;
+  let contentResultObj;
 
   for (let i = 0; i < originArr.length - 1; i++) {
     let key = `${originArr[i].type}-${originArr[i].tag}`;
@@ -233,8 +244,11 @@ exports.convertToPaperModel = async function (originArr, thesisPath) {
         paperModelObj.image.push({ id: paragraphObj.id, caption: paragraphObj.caption, fileName: paragraphObj.fileName, width: paragraphObj.width, height: paragraphObj.height });
       }
     }
-
-    contentObj = getContent(contentObj, paragraphObj, contentType, paragraphType);
+    contentResultObj = getContent(contentObj, paragraphObj, contentType, paragraphType);
+    contentObj = contentResultObj.content;
+    if (contentResultObj.formula.id) {
+      paperModelObj.formula.push(contentResultObj.formula);
+    }
   }
   return paperModelObj;
 };
