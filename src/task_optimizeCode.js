@@ -6,6 +6,7 @@ const ShortUID = require('short-uid');
 const idGen = new ShortUID();
 const fs = require('fs');
 const uuidv1 = require('uuid/v1');
+const querystring = require('querystring');
 
 
 const paragraphTypeMapping = {
@@ -71,10 +72,11 @@ function processUnderlineInStr(content) {
   return paraObj;
 }
 function convertDecoratesInChildren(childrenArr = [], contentType) {
-  let paragraphObj = { content: '', decorates: [] };
+  let paragraphObj = { content: '', decorates: [], footnotes: [] };
   if (!childrenArr[0]) {
     return paragraphObj;
   }
+  let footnote = {};
   for (let i = 0; i < childrenArr.length; i++) {
     let type = childrenArr[i].type;
     if (type === undefined) continue;
@@ -85,7 +87,15 @@ function convertDecoratesInChildren(childrenArr = [], contentType) {
     } else if (type === 'softbreak' && childrenArr[i].tag === 'br') {
       paragraphObj.content += ' ';
     } else if (type.endsWith('_open')) {
-      paragraphObj.decorates.push({ pos: paragraphObj.content.length, type: [decoratesMapping[markup]] });
+      let pos = paragraphObj.content.length;
+      if (type === 'link_open') {
+        let footnoteId = uuidv1();
+        paragraphObj.footnotes.push({ pos: pos, id: footnoteId });
+        footnote = { id: footnoteId, text: querystring.unescape(childrenArr[i].attrs[0][1]) };
+        i = i + 2;
+      } else {
+        paragraphObj.decorates.push({ pos: pos, type: [decoratesMapping[markup]] });
+      }
     } else if (type.endsWith('_close')) {
       paragraphObj.decorates.find(value => {
         if (value.type[0] === decoratesMapping[markup]) {
@@ -97,12 +107,12 @@ function convertDecoratesInChildren(childrenArr = [], contentType) {
   let tempContentObj = processUnderlineInStr(paragraphObj.content);
   paragraphObj.content = tempContentObj.content;
   paragraphObj.decorates = paragraphObj.decorates.concat(tempContentObj.decorates);
-  return paragraphObj;
+  return { paragraphObj, footnote };
 }
 function convertChildrenPromise(childrenArr = [], contentType) {
   return new Promise((resolve, reject) => {
     if (!childrenArr || !childrenArr[0] || !contentType) {
-      return resolve({ type: 'paragraph', content: '', decorates: [] });
+      return resolve({ paragraphObj: { type: 'paragraph', content: '', decorates: [] } });
     }
     if (childrenArr[0].type === 'image') {
       let imagePath = childrenArr[0].attrs[0] ? childrenArr[0].attrs[0][1] : ''; // ./data/wordImg/media/image1.jpeg
@@ -111,13 +121,13 @@ function convertChildrenPromise(childrenArr = [], contentType) {
       fs.rename(imagePath, newPath, err => {
         let fileName = imageFilePathObj.fileName;
         let imageId = uuidv1();
-        let widthAndHeight = convertDecoratesInChildren(childrenArr, contentType).content;
+        let widthAndHeight = convertDecoratesInChildren(childrenArr, contentType).paragraphObj.content;
         widthAndHeight = widthAndHeight.split('"');
         let width = widthAndHeight[1] && widthAndHeight[1].slice(0, -2);
         let height = widthAndHeight[3] && widthAndHeight[3].slice(0, -2);
         width = convertInToPx(width);
         height = convertInToPx(height);
-        return resolve({ type: 'image', id: imageId, fileName: fileName, width: width, height: height, caption: '(无标题)' });
+        return resolve({ paragraphObj: { type: 'image', id: imageId, fileName: fileName, width: width, height: height, caption: '(无标题)' } });
       });
     } else {
       return resolve(convertDecoratesInChildren(childrenArr, contentType));
@@ -186,11 +196,11 @@ function processParagraph(paragraphType = '', paragraphObj) {
     let formulaText = paragraphObj.content.slice(2, -2);
     paraObj = { formula: { id: formulaId, text: formulaText }, comment: null };
   } else {
-    paraObj = { paragraph: paragraphObj.content, decorates: paragraphObj.decorates, refs: [], footnotes: [], comment: null };
+    paraObj = { paragraph: paragraphObj.content, decorates: paragraphObj.decorates, refs: [], footnotes: paragraphObj.footnotes, comment: null };
   }
   if (paragraphType.endsWith('_open')) {
     let type = paragraphType.split('_')[0];
-    paraObj = { list: { text: paragraphObj.content, type: type, decorates: paragraphObj.decorates, refs: [], footnotes: [] }, comment: null };
+    paraObj = { list: { text: paragraphObj.content, type: type, decorates: paragraphObj.decorates, refs: [], footnotes: paragraphObj.footnotes }, comment: null };
   }
   return paraObj;
 }
@@ -210,7 +220,7 @@ function getContent(content, paragraphObj, contentType, paragraphType) {
       formulaObj.formula = paraObj.formula.text;
     }
   } else if (['1', '2', '3', '4'].indexOf(contentType) >= 0) {
-    let sectionsObj = { name: paragraphObj.content, decorates: paragraphObj.decorates, preParagraphs: [], sections: [], comment: null };
+    let sectionsObj = { name: paragraphObj.content, decorates: paragraphObj.decorates, preParagraphs: [], sections: [], footnotes: paragraphObj.footnotes, comment: null };
     getContent.sPosition = getSectionPosition(content, contentType) || getContent.sPosition;
     getContent.sPosition.push(sectionsObj);
     getContent.pPosition = getContent.sPosition[getContent.sPosition.length - 1];
@@ -221,7 +231,7 @@ function getContent(content, paragraphObj, contentType, paragraphType) {
 }
 exports.convertToPaperModel = async function (originArr, thesisPath) {
   if (!originArr[0]) return;
-  let paperModelObj = { content: { preParagraphs: [{ preParagraphs: [] }], chapters: [] }, image: [], table: [], formula: [] };
+  let paperModelObj = { content: { preParagraphs: [{ preParagraphs: [] }], chapters: [] }, image: [], table: [], formula: [], footnote: [] };
   let contentObj = paperModelObj.content;
   let paragraphType, paragraphObj, contentType, tableObj;
   let contentResultObj;
@@ -237,7 +247,11 @@ exports.convertToPaperModel = async function (originArr, thesisPath) {
       paperModelObj.table.push({ id: tableObj.id, caption: tableObj.caption, source: tableObj.source, fileName: tableObj.fileName, imgFileName: tableObj.imgFileName, data: tableObj.data });
     } else {
       if (originArr[i + 1].children === null) continue;
-      paragraphObj = await convertChildrenPromise(originArr[i + 1].children, contentType);
+      let convertChildrenResult = await convertChildrenPromise(originArr[i + 1].children, contentType);
+      paragraphObj = convertChildrenResult.paragraphObj;
+      if (convertChildrenResult.footnote && convertChildrenResult.footnote.id) {
+        paperModelObj.footnote.push(convertChildrenResult.footnote);
+      }
       if (paragraphObj && paragraphObj.type === 'image') {
         paperModelObj.image.push({ id: paragraphObj.id, caption: paragraphObj.caption, fileName: paragraphObj.fileName, width: paragraphObj.width, height: paragraphObj.height });
       }

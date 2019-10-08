@@ -33,9 +33,9 @@ let subprocess = exec(`pandoc --extract-media ${savePictureDir} -f docx -t markd
   // console.log(`err: ${err}\n`);
   // console.log(`stdout:\n ${stdout}`);
   const mdResult = markdownIt.parse(stdout, {});
-  // console.log(`${JSON.stringify(mdResult)}`);
+  console.log(`${JSON.stringify(mdResult)}`);
   convertToPaperModel(mdResult).then(result => {
-    console.log(`${JSON.stringify(result)}`);
+    // console.log(`${JSON.stringify(result)}`);
   });
 });
 
