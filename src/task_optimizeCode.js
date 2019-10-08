@@ -6,6 +6,7 @@ const ShortUID = require('short-uid');
 const idGen = new ShortUID();
 const fs = require('fs');
 
+
 const paragraphTypeMapping = {
   'bullet_list_open-ul': 'bullet_open',
   'bullet_list_close-ul': 'bullet_end',
@@ -117,7 +118,7 @@ function convertChildrenPromise(childrenArr = [], contentType) {
         let height = widthAndHeight[3] && widthAndHeight[3].slice(0, -2);
         width = convertInToPx(width);
         height = convertInToPx(height);
-        return resolve({ type: 'image', id: imageId, fileName: fileName, width: width, height: height, caption: '无标题' });
+        return resolve({ type: 'image', id: imageId, fileName: fileName, width: width, height: height, caption: '(无标题)' });
       });
     } else {
       return resolve(convertDecoratesInChildren(childrenArr, contentType));
@@ -125,32 +126,45 @@ function convertChildrenPromise(childrenArr = [], contentType) {
   });
 }
 
-function convertTable(tableType, content) {
-  if (!convertTable.data && tableType === 'table_open') {
-    convertTable.data = { header: [], body: [] };
-  }
-  let tableObj = { id: '', caption: '无标题', source: '', fileName: '', imgFileName: '', data: null };
+function convertTablePromise(tableType, content, thesisPath, callback) {
+  return new Promise((resolve, reject) => {
+    if (!convertTablePromise.data && tableType === 'table_open') {
+      convertTablePromise.data = { header: [], body: [] };
+    }
+    let tableObj = { id: '', caption: '(无标题)', source: '', fileName: '', imgFileName: '', data: null };
 
-  if (tableType === 'th') {
-    content ? convertTable.data.header.push(content) : '';
-  } else if (tableType === 'td' && convertTable.tableType === 'tr') {
-    convertTable.data.body[convertTable.data.body.length] = [];
-    convertTable.eachBody = convertTable.data.body[convertTable.data.body.length - 1];
-  } else if (tableType === 'td') {
-    content ? convertTable.eachBody.push(content) : ''
-  }
+    if (tableType === 'th') {
+      content ? convertTablePromise.data.header.push(content) : '';
+    } else if (tableType === 'td' && convertTablePromise.tableType === 'tr') {
+      convertTablePromise.data.body[convertTablePromise.data.body.length] = [];
+      convertTablePromise.eachBody = convertTablePromise.data.body[convertTablePromise.data.body.length - 1];
+    } else if (tableType === 'td') {
+      content ? convertTablePromise.eachBody.push(content) : '';
+    }
 
-  convertTable.tableType = tableType;
-  if (tableType === 'table_close') {
-    let timestamp = new Date().getTime();
-    tableObj.id = idGen.randomUUID();
-    tableObj.fileName = `TABLE_${timestamp}`;
-    tableObj.data = convertTable.data;
-    convertTable.data = null;
-    return tableObj;
-  } else {
-    return { data: null };
-  }
+    convertTablePromise.tableType = tableType;
+    if (tableType === 'table_close') {
+      let timestamp = new Date().getTime();
+      tableObj.id = idGen.randomUUID();
+      tableObj.fileName = `TABLE_${timestamp}`;
+      tableObj.imgFileName = `${tableObj.fileName}.png`;
+      tableObj.data = convertTablePromise.data;
+      convertTablePromise.data = null;
+      // let uploadPath = thesisPath + '/files';
+      // utils.createFolderIfNotExist(uploadPath);
+      // convertDataToImage(tableObj.data, tableObj.fileName, uploadPath, result => {
+      //   if (result) {
+      //     tableObj.imgFileName = result;
+      //     return resolve(tableObj);
+      //   } else {
+      //     return resolve({ data: null });
+      //   }
+      // });
+      return resolve(tableObj);
+    } else {
+      return resolve({ data: null });
+    }
+  });
 }
 function getSectionPosition(contentObj, level) {
   if (!level) return;
@@ -197,7 +211,7 @@ function getContent(content, paragraphObj, contentType, paragraphType) {
   }
   return content;
 }
-exports.convertToPaperModel = async function (originArr) {
+exports.convertToPaperModel = async function (originArr, thesisPath) {
   if (!originArr[0]) return;
   let paperModelObj = { content: { preParagraphs: [{ preParagraphs: [] }], chapters: [] }, image: [], table: [] };
   let contentObj = paperModelObj.content;
@@ -208,7 +222,7 @@ exports.convertToPaperModel = async function (originArr) {
     paragraphTypeMapping[key] ? paragraphType = paragraphTypeMapping[key] : '';
     contentType = tagMapping[key] ? tagMapping[key] : contentType;
 
-    tableObj = convertTable(contentType, originArr[i].content);
+    tableObj = await convertTablePromise(contentType, originArr[i].content, thesisPath);
     if (tableObj.data) {
       paragraphObj = { table: { id: tableObj.id, caption: tableObj.caption, source: tableObj.source, imgFileName: tableObj.imgFileName }, comment: null };
       paperModelObj.table.push({ id: tableObj.id, caption: tableObj.caption, source: tableObj.source, fileName: tableObj.fileName, imgFileName: tableObj.imgFileName, data: tableObj.data });
