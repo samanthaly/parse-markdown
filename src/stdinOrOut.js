@@ -26,16 +26,19 @@ const simple11 = dir + '/simpleFix.docx';
 const simpleMarkdown = dir + '/simpleMarkdown.docx';
 const specialWord = dir + '/special_产品功能培训.docx';
 const officeWord = dir + '/officeWord.docx';
+const referenceWord = dir + '/参考文献的建立.docx';
 
-let readStream = fs.createReadStream(officeWord);
-let subprocess = exec(`pandoc --extract-media ${savePictureDir} -f docx -t markdown-simple_tables`, (err, stdout) => {
+const pandocCommand = `pandoc --extract-media ${savePictureDir} -f docx -t markdown-simple_tables`;
+
+let readStream = fs.createReadStream(referenceWord);
+let subprocess = exec(pandocCommand, (err, stdout) => {
   // let subprocess = exec(`pandoc --extract-media ./wordImg -f docx -o markdown.md`, (err, stdout) => {
   // console.log(`err: ${err}\n`);
   // console.log(`stdout:\n ${stdout}`);
   const mdResult = markdownIt.parse(stdout, {});
-  console.log(`${JSON.stringify(mdResult)}`);
+  // console.log(`${JSON.stringify(mdResult)}`);
   convertToPaperModel(mdResult).then(result => {
-    // console.log(`${JSON.stringify(result)}`);
+    console.log(`${JSON.stringify(result)}`);
   });
 });
 

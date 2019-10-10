@@ -28,11 +28,11 @@ const tagMapping = {
   'td_open-td': 'td',
 };
 const decoratesMapping = {
-  '**': 'bold',
-  '*': 'italic',
-  '~~': 'strikethrough',
-  '^': 'superscript',
-  '~': 'subscript'
+  'strong': 'bold',
+  'em': 'italic',
+  's': 'strikethrough',
+  'sup': 'superscript',
+  'sub': 'subscript'
 };
 function convertInToPx(num) {
   num = parseFloat(num);
@@ -76,32 +76,42 @@ function convertDecoratesInChildren(childrenArr = [], contentType) {
   if (!childrenArr[0]) {
     return paragraphObj;
   }
-  let footnote = {};
+  let footnote = {}, decoratesObj = {}, processContent, processType, decorateType, state, pos;
   for (let i = 0; i < childrenArr.length; i++) {
-    let type = childrenArr[i].type;
-    if (type === undefined) continue;
-    let markup = childrenArr[i].markup;
+    let { type, content, tag } = childrenArr[i];
     if (type === 'text') {
-      let processContent = contentType === 'p' ? childrenArr[i].content : childrenArr[i].content.replace(/(.+)\s* \s*(\{#.+\})/g, '$1');
+      processContent = contentType === 'p' ? content : content.replace(/(.+)\s* \s*(\{#.+\})/g, '$1');
       paragraphObj.content += processContent;
-    } else if (type === 'softbreak' && childrenArr[i].tag === 'br') {
-      paragraphObj.content += ' ';
+    } else if (type === 'softbreak') {
+      tag === 'br' ? paragraphObj.content += ' ' : '';
+    } else if (type === 'link_open') {
+      let footnoteId = uuidv1();
+      paragraphObj.footnotes.push({ pos: pos, id: footnoteId });
+      footnote = { id: footnoteId, text: querystring.unescape(childrenArr[i].attrs[0][1]) };
+      i = i + 2;
     } else if (type.endsWith('_open')) {
-      let pos = paragraphObj.content.length;
-      if (type === 'link_open') {
-        let footnoteId = uuidv1();
-        paragraphObj.footnotes.push({ pos: pos, id: footnoteId });
-        footnote = { id: footnoteId, text: querystring.unescape(childrenArr[i].attrs[0][1]) };
-        i = i + 2;
-      } else {
-        paragraphObj.decorates.push({ pos: pos, type: [decoratesMapping[markup]] });
+      processType = type.split('_');
+      decorateType = decoratesMapping[processType[0]];
+      state = processType[1];
+      pos = paragraphObj.content.length;
+      if (decoratesObj[decorateType]) {
+        delete decoratesObj[decorateType];
       }
+      decoratesObj[decorateType] = { state, pos, type: [decorateType] };
     } else if (type.endsWith('_close')) {
-      paragraphObj.decorates.find(value => {
-        if (value.type[0] === decoratesMapping[markup]) {
-          value.length = paragraphObj.content.length - value.pos;
-        }
-      });
+      processType = type.split('_');
+      decorateType = decoratesMapping[processType[0]];
+      if (!decoratesObj[decorateType]) {
+        continue;
+      }
+      state = processType[1];
+      let decorateTemp = decoratesObj[decorateType];
+      if (decorateTemp.state === 'open') {
+        decorateTemp.length = paragraphObj.content.length - decorateTemp.pos;
+        delete decorateTemp.state;
+        paragraphObj.decorates.push(decorateTemp);
+        delete decoratesObj[decorateType];
+      }
     }
   }
   let tempContentObj = processUnderlineInStr(paragraphObj.content);
