@@ -10,7 +10,7 @@ const markdownIt = require('markdown-it')()
   .use(require('markdown-it-sup'));
 
 // const { convertToPaperModel } = require('./task_convert');
-const { convertToPaperModel } = require('./task_optimizeCode');
+const { convertToPaperModel } = require('./parseWordContent');
 // const { convertToPaperModel } = require('./shao');
 
 // const dir = '/Users/zhima02/Desktop/demo/parse-markdown/doc';
@@ -27,10 +27,11 @@ const simpleMarkdown = dir + '/simpleMarkdown.docx';
 const specialWord = dir + '/special_产品功能培训.docx';
 const officeWord = dir + '/officeWord.docx';
 const referenceWord = dir + '/参考文献的建立.docx';
+const wordImportWord = dir + '/Word导入测试文档.docx';
 
 const pandocCommand = `pandoc --extract-media ${savePictureDir} -f docx -t markdown-simple_tables`;
 
-let readStream = fs.createReadStream(referenceWord);
+let readStream = fs.createReadStream(wordImportWord);
 let subprocess = exec(pandocCommand, (err, stdout) => {
   // let subprocess = exec(`pandoc --extract-media ./wordImg -f docx -o markdown.md`, (err, stdout) => {
   // console.log(`err: ${err}\n`);

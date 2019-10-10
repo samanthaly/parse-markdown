@@ -119,7 +119,21 @@ function convertDecoratesInChildren(childrenArr = [], contentType) {
   paragraphObj.decorates = paragraphObj.decorates.concat(tempContentObj.decorates);
   return { paragraphObj, footnote };
 }
-function convertChildrenPromise(childrenArr = [], contentType) {
+function processCaption(index, originArr) {
+  let caption = '(无标题)';
+  const includeArr = ['图', 'Figure', 'Table'];
+  const content = originArr[index + 2].content;
+  for (let i = 0; i < includeArr.length; i++) {
+    let includeCaption = includeArr[i];
+    if (content.startsWith(includeCaption)) {
+      originArr.type = 'image_caption';
+      caption = content.slice(includeCaption.length + 1);
+      return caption;
+    }
+  }
+  return caption;
+}
+function convertChildrenPromise(childrenArr = [], contentType, index, originArr) {
   return new Promise((resolve, reject) => {
     if (!childrenArr || !childrenArr[0] || !contentType) {
       return resolve({ paragraphObj: { type: 'paragraph', content: '', decorates: [] } });
@@ -131,13 +145,14 @@ function convertChildrenPromise(childrenArr = [], contentType) {
       fs.rename(imagePath, newPath, err => {
         let fileName = imageFilePathObj.fileName;
         let imageId = uuidv1();
+        let caption = processCaption(index, originArr);
         let widthAndHeight = convertDecoratesInChildren(childrenArr, contentType).paragraphObj.content;
         widthAndHeight = widthAndHeight.split('"');
         let width = widthAndHeight[1] && widthAndHeight[1].slice(0, -2);
         let height = widthAndHeight[3] && widthAndHeight[3].slice(0, -2);
         width = convertInToPx(width);
         height = convertInToPx(height);
-        return resolve({ paragraphObj: { type: 'image', id: imageId, fileName: fileName, width: width, height: height, caption: '(无标题)' } });
+        return resolve({ paragraphObj: { type: 'image', id: imageId, fileName, width, height, caption } });
       });
     } else {
       return resolve(convertDecoratesInChildren(childrenArr, contentType));
@@ -256,8 +271,13 @@ exports.convertToPaperModel = async function (originArr, thesisPath) {
       paragraphObj = { table: { id: tableObj.id, caption: tableObj.caption, source: tableObj.source, imgFileName: tableObj.imgFileName }, comment: null };
       paperModelObj.table.push({ id: tableObj.id, caption: tableObj.caption, source: tableObj.source, fileName: tableObj.fileName, imgFileName: tableObj.imgFileName, data: tableObj.data });
     } else {
-      if (originArr[i + 1].children === null) continue;
-      let convertChildrenResult = await convertChildrenPromise(originArr[i + 1].children, contentType);
+      if (originArr[i + 1].children === null) {
+        continue;
+      } else if (originArr.type && originArr.type.endsWith('_caption') && originArr[i + 1].children) {
+        delete originArr.type;
+        continue;
+      }
+      let convertChildrenResult = await convertChildrenPromise(originArr[i + 1].children, contentType, i + 2, originArr);
       paragraphObj = convertChildrenResult.paragraphObj;
       if (convertChildrenResult.footnote && convertChildrenResult.footnote.id) {
         paperModelObj.footnote.push(convertChildrenResult.footnote);
