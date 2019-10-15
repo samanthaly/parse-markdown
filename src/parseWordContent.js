@@ -94,9 +94,6 @@ function convertDecoratesInChildren(childrenArr = [], contentType) {
       decorateType = decoratesMapping[processType[0]];
       state = processType[1];
       pos = paragraphObj.content.length;
-      if (decoratesObj[decorateType]) {
-        delete decoratesObj[decorateType];
-      }
       decoratesObj[decorateType] = { state, pos, type: [decorateType] };
     } else if (type.endsWith('_close')) {
       processType = type.split('_');
@@ -228,37 +225,11 @@ function processParagraph(paragraphType = '', paragraphObj) {
   }
   return paraObj;
 }
-function getContent(content, paragraphObj, contentType, paragraphType) {
-  if (!getContent.pPosition) {
-    getContent.pPosition = content.preParagraphs[0];
-  }
-  if (!getContent.sPosition) {
-    getContent.sPosition = content.chapters;
-  }
-  let formulaObj = {};
-  if (contentType === 'p') {
-    let paraObj = processParagraph(paragraphType, paragraphObj);
-    getContent.pPosition.preParagraphs.push(paraObj);
-    if (paraObj.formula) {
-      formulaObj.id = paraObj.formula.id;
-      formulaObj.formula = paraObj.formula.text;
-    }
-  } else if (['1', '2', '3', '4'].indexOf(contentType) >= 0) {
-    let sectionsObj = { name: paragraphObj.content, decorates: paragraphObj.decorates, preParagraphs: [], sections: [], footnotes: paragraphObj.footnotes, comment: null };
-    getContent.sPosition = getSectionPosition(content, contentType) || getContent.sPosition;
-    getContent.sPosition.push(sectionsObj);
-    getContent.pPosition = getContent.sPosition[getContent.sPosition.length - 1];
-  } else if (contentType === 'table_close' && paragraphObj.table) {
-    getContent.pPosition.preParagraphs.push(paragraphObj);
-  }
-  return { content, formula: formulaObj };
-}
 exports.convertToPaperModel = async function (originArr, thesisPath) {
   if (!originArr[0]) return;
   let paperModelObj = { content: { preParagraphs: [{ preParagraphs: [] }], chapters: [] }, image: [], table: [], formula: [], footnote: [] };
-  let contentObj = paperModelObj.content;
-  let paragraphType, paragraphObj, contentType, tableObj, mode = { currentMode: 'normal' };
-  let contentResultObj;
+  let paragraphType, paragraphObj, contentType, tableObj, mode = { currentMode: 'normal' }, paraObj;
+  let pPosition = paperModelObj.content.preParagraphs[0], sPosition = paperModelObj.content.chapters;
 
   for (let i = 0; i < originArr.length - 1; i++) {
     let key = `${originArr[i].type}-${originArr[i].tag}`;
@@ -276,7 +247,9 @@ exports.convertToPaperModel = async function (originArr, thesisPath) {
         mode.currentMode = 'normal';
         continue;
       }
-      let convertChildrenResult = await convertChildrenPromise(originArr[i + 1].children, contentType, originArr[i + 4].content, mode);
+
+      let nextContent = originArr[i + 4] ? originArr[i + 4].content : '';
+      let convertChildrenResult = await convertChildrenPromise(originArr[i + 1].children, contentType, nextContent, mode);
       paragraphObj = convertChildrenResult.paragraphObj;
       if (convertChildrenResult.footnote && convertChildrenResult.footnote.id) {
         paperModelObj.footnote.push(convertChildrenResult.footnote);
@@ -285,11 +258,24 @@ exports.convertToPaperModel = async function (originArr, thesisPath) {
         paperModelObj.image.push({ id: paragraphObj.id, caption: paragraphObj.caption, fileName: paragraphObj.fileName, width: paragraphObj.width, height: paragraphObj.height });
       }
     }
-    contentResultObj = getContent(contentObj, paragraphObj, contentType, paragraphType);
-    contentObj = contentResultObj.content;
-    if (contentResultObj.formula.id) {
-      paperModelObj.formula.push(contentResultObj.formula);
+
+
+    if (contentType === 'p') {
+      paraObj = processParagraph(paragraphType, paragraphObj);
+      pPosition.preParagraphs.push(paraObj);
+      if (paraObj.formula) {
+        paperModelObj.formula.push({ id: paraObj.formula.id, formula: paraObj.formula.text });
+      }
+    } else if (['1', '2', '3', '4'].indexOf(contentType) >= 0) {
+      let sectionsObj = { name: paragraphObj.content, decorates: paragraphObj.decorates, preParagraphs: [], sections: [], footnotes: paragraphObj.footnotes, comment: null };
+      sPosition = getSectionPosition(paperModelObj.content, contentType) || sPosition;
+      sPosition.push(sectionsObj);
+      pPosition = sPosition[sPosition.length - 1];
+    } else if (contentType === 'table_close' && paragraphObj.table) {
+      pPosition.preParagraphs.push(paragraphObj);
     }
+
+
   }
   return paperModelObj;
 };
