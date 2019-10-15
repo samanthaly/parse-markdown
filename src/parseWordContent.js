@@ -34,6 +34,17 @@ const decoratesMapping = {
   'sup': 'superscript',
   'sub': 'subscript'
 };
+const REPLACE_MAPPING = {
+  'in"}': 'in"}\n\n',
+  '![](': '\n\n![]('
+};
+exports.replaceTextByReplaceMapping = (text) => {
+  if (!text) return text;
+  text = text.replace(/(in"})|(!\[\]\()/g, function (matched) {
+    return REPLACE_MAPPING[matched];
+  });
+  return text;
+}
 function convertInToPx(num) {
   num = parseFloat(num);
   return Math.round(num * 96);
