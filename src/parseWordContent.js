@@ -7,6 +7,7 @@ const idGen = new ShortUID();
 const fs = require('fs');
 const uuidv1 = require('uuid/v1');
 const querystring = require('querystring');
+const rimraf = require('rimraf');
 
 
 const paragraphTypeMapping = {
@@ -149,7 +150,7 @@ function convertChildrenPromise(childrenArr = [], contentType, nextContent, mode
       let imagePath = childrenArr[0].attrs[0] ? childrenArr[0].attrs[0][1] : ''; // ./data/wordImg/media/image1.jpeg
       let imageFilePathObj = renameImageFile(imagePath);
       let newPath = imageFilePathObj.path;
-      fs.rename(imagePath, newPath, err => {
+      fs.copyFile(imagePath, newPath, err => {
         let fileName = imageFilePathObj.fileName;
         let imageId = uuidv1();
         let caption = processCaption(nextContent, mode);
@@ -168,7 +169,7 @@ function convertChildrenPromise(childrenArr = [], contentType, nextContent, mode
 }
 // 此函数和项目中的不同
 function convertTablePromise(tableType, content, thesisPath, callback) {
-  return new Promise((resolve, reject) => {
+  return new Promise(resolve => {
     if (!convertTablePromise.data && tableType === 'table_open') {
       convertTablePromise.data = { header: [], body: [] };
     }
@@ -236,6 +237,13 @@ function processParagraph(paragraphType = '', paragraphObj) {
   }
   return paraObj;
 }
+function deleteWordImagePathPromis(path) {
+  return new Promise(resolve => {
+    rimraf(path, () => {
+      resolve();
+    });
+  });
+}
 exports.convertToPaperModel = async function (originArr, thesisPath) {
   if (!originArr[0]) return;
   let paperModelObj = { content: { preParagraphs: [{ preParagraphs: [] }], chapters: [] }, image: [], table: [], formula: [], footnote: [] };
@@ -288,5 +296,6 @@ exports.convertToPaperModel = async function (originArr, thesisPath) {
 
 
   }
+  await deleteWordImagePathPromis(thesisPath + '/media');
   return paperModelObj;
 };
